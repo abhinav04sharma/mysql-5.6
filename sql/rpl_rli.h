@@ -36,6 +36,7 @@
 struct RPL_TABLE_LIST;
 class Master_info;
 class Commit_order_manager;
+class Snapshot_manager;
 extern uint sql_slave_skip_counter;
 
 
@@ -1004,6 +1005,16 @@ public:
   {
     commit_order_mngr= mngr;
   }
+
+  Snapshot_manager *get_snapshot_manager()
+  {
+    return snapshot_mngr;
+  }
+
+  void set_snapshot_manager(Snapshot_manager *mngr)
+  {
+    snapshot_mngr= mngr;
+  }
 #endif
 
   virtual bool get_skip_unique_check()
@@ -1037,7 +1048,8 @@ private:
     Multi Source Replication each worker will be ordered by the coresponding
     corrdinator's order manager.
    */
-  Commit_order_manager* commit_order_mngr;
+  Commit_order_manager* commit_order_mngr= nullptr;
+  Snapshot_manager* snapshot_mngr= nullptr;
 
   /**
     Delay slave SQL thread by this amount, compared to master (in

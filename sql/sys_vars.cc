@@ -5291,11 +5291,20 @@ static Sys_var_ulonglong Sys_mts_dependency_max_keys(
        GLOBAL_VAR(opt_mts_dependency_max_keys), CMD_LINE(OPT_ARG),
        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(100000), BLOCK_SIZE(1));
 
-static Sys_var_mybool Sys_mts_dependency_order_commits(
+static const char *dep_commit_order_type_names[]= {
+  "OFF", "STRICT", "SNAPSHOT", NullS };
+
+static Sys_var_enum Sys_mts_dependency_order_commits(
        "mts_dependency_order_commits",
-       "Commit trxs in the same order as the master (per database)",
+       "Commit or view trxs in the same order as the master. If this variable "
+       "is set to STRICT all trxs are committed in the same order as the "
+       "master. If it's set to SNAPSHOT, read-only trxs on the slave see a "
+       "consistent view of the data while trxs are committed out-of-order "
+       "under the covers.",
        GLOBAL_VAR(opt_mts_dependency_order_commits),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), dep_commit_order_type_names,
+       DEFAULT(DEP_ORDER_COMMITS_STRICT),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
 
 static Sys_var_ulonglong Sys_mts_pending_jobs_size_max(
        "slave_pending_jobs_size_max",

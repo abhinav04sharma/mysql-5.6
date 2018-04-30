@@ -103,6 +103,8 @@
 
 #include "rpl_handler.h"
 
+#include "rpl_slave_snapshot_manager.h"
+
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
 #endif
@@ -701,7 +703,7 @@ ulong opt_mts_dependency_replication;
 ulonglong opt_mts_dependency_size;
 double opt_mts_dependency_refill_threshold;
 ulonglong opt_mts_dependency_max_keys;
-my_bool opt_mts_dependency_order_commits;
+ulong opt_mts_dependency_order_commits;
 my_bool opt_mts_dynamic_rebalance;
 double opt_mts_imbalance_threshold;
 ulonglong opt_mts_pending_jobs_size_max;
@@ -1158,6 +1160,20 @@ void add_global_thread(THD *thd)
   DBUG_PRINT("info", ("add_global_thread %p", thd));
   mutex_assert_owner_shard(SHARDED(&LOCK_thread_count), thd);
   bool have_thread= global_thread_list->find_bool(thd);
+#ifdef HAVE_REPLICATION
+  // case: if snapshot manager exists assign latest snapshot to the thread
+  if (unlikely(!thd->rli_slave && // not slave thread
+               active_mi &&
+               active_mi->rli))
+  {
+    mysql_mutex_lock(&active_mi->rli->info_thd_lock);
+    if (active_mi->rli->get_snapshot_manager())
+    {
+      active_mi->rli->get_snapshot_manager()->set_snapshot(thd);
+    }
+    mysql_mutex_unlock(&active_mi->rli->info_thd_lock);
+  }
+#endif
   if (!have_thread)
   {
     ++global_thread_count;
@@ -12843,6 +12859,7 @@ PSI_stage_info stage_waiting_for_the_next_event_in_relay_log= { 0, "Waiting for 
 PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position= { 0, "Waiting for the slave SQL thread to advance position", 0};
 PSI_stage_info stage_waiting_to_finalize_termination= { 0, "Waiting to finalize termination", 0};
 PSI_stage_info stage_worker_waiting_for_its_turn_to_commit= { 0, "Waiting for preceding transaction to commit", 0};
+PSI_stage_info stage_worker_waiting_for_snapshot= { 0, "Waiting for next snapshot", 0};
 PSI_stage_info stage_waiting_to_get_readlock= { 0, "Waiting to get readlock", 0};
 PSI_stage_info stage_slave_waiting_workers_to_exit= { 0, "Waiting for workers to exit", 0};
 PSI_stage_info stage_slave_waiting_worker_to_release_partition= { 0, "Waiting for Slave Worker to release partition", 0};
@@ -12956,6 +12973,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_the_slave_thread_to_advance_position,
   & stage_waiting_to_finalize_termination,
   & stage_worker_waiting_for_its_turn_to_commit,
+  & stage_worker_waiting_for_snapshot,
   & stage_waiting_to_get_readlock
 };
 

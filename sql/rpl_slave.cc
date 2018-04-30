@@ -63,6 +63,7 @@
 #include "debug_sync.h"
 #include "dependency_slave_worker.h"
 #include "rpl_slave_commit_order_manager.h"    // Commit_order_manager
+#include "rpl_slave_snapshot_manager.h"
 #include <chrono>
 
 using std::min;
@@ -6178,6 +6179,14 @@ bool mts_checkpoint_routine(Relay_log_info *rli, ulonglong period,
   else
     mysql_mutex_assert_owner(&rli->data_lock);
 
+  if (auto snapshot_mngr= rli->get_snapshot_manager())
+  {
+    if ((error= !snapshot_mngr->update_snapshot()))
+    {
+      goto end;
+    }
+  }
+
   /*
     "Coordinator::commit_positions" {
 
@@ -6425,6 +6434,14 @@ void slave_stop_workers(Relay_log_info *rli, bool *mts_inited)
 
   if (opt_mts_dependency_replication)
   {
+    if (opt_mts_dependency_order_commits == DEP_ORDER_COMMITS_SNAPSHOT)
+    {
+      auto mngr= rli->get_snapshot_manager();
+      if (mngr)
+      {
+        mngr->move_next_seqno(ULONGLONG_MAX);
+      }
+    }
     mysql_mutex_lock(&rli->dep_lock);
     // figure out if any worker thread is working on a partially scheduled
     // transaction, i.e. if the queue is empty and the SQL thread is maintaning
@@ -6601,6 +6618,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   const char *errmsg;
   bool mts_inited= false;
   Commit_order_manager *commit_order_mngr= NULL;
+  Snapshot_manager *snapshot_mngr= NULL;
 
   /* Buffer lifetime extends across the entire runtime of the THD handle. */
   static char proc_info_buf[256]= {0};
@@ -6623,7 +6641,6 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd->thread_stack = (char*)&thd; // remember where our stack is
   mysql_mutex_lock(&rli->info_thd_lock);
   rli->info_thd= thd;
-  mysql_mutex_unlock(&rli->info_thd_lock);
 
   if (opt_mts_dependency_replication &&
       !slave_use_idempotent_for_recovery_options)
@@ -6640,10 +6657,23 @@ pthread_handler_t handle_slave_sql(void *arg)
   if (opt_mts_dependency_order_commits && opt_mts_dependency_replication &&
       rli->opt_slave_parallel_workers > 0 &&
       opt_bin_log && opt_log_slave_updates)
-    commit_order_mngr=
-      new Commit_order_manager(rli->opt_slave_parallel_workers);
-
+  {
+    if (opt_mts_dependency_order_commits == DEP_ORDER_COMMITS_STRICT)
+    {
+      commit_order_mngr=
+        new Commit_order_manager(rli->opt_slave_parallel_workers);
+    }
+    else
+    {
+      DBUG_ASSERT(opt_mts_dependency_order_commits ==
+                  DEP_ORDER_COMMITS_SNAPSHOT);
+      snapshot_mngr= new Snapshot_manager(rli);
+    }
+  }
   rli->set_commit_order_manager(commit_order_mngr);
+  rli->set_snapshot_manager(snapshot_mngr);
+
+  mysql_mutex_unlock(&rli->info_thd_lock);
 
   /* Inform waiting threads that slave has started */
   rli->slave_run_id++;
@@ -6838,6 +6868,12 @@ log '%s' at position %s, relay log '%s' position: %s", rli->get_rpl_log_name(),
   }
   mysql_mutex_unlock(&rli->data_lock);
 
+  if (snapshot_mngr && !snapshot_mngr->init())
+  {
+    sql_print_error("Could not initialize snapshot manager!");
+    goto err;
+  }
+
   /* Read queries from the IO/THREAD until this thread is killed */
 
   while (!sql_slave_killed(thd,rli))
@@ -7011,8 +7047,13 @@ llstr(rli->get_group_master_log_pos(), llbuff));
   rli->info_thd= 0;
   if (commit_order_mngr)
   {
-    delete commit_order_mngr;
     rli->set_commit_order_manager(NULL);
+    delete commit_order_mngr;
+  }
+  if (snapshot_mngr)
+  {
+    rli->set_snapshot_manager(NULL);
+    delete snapshot_mngr;
   }
   mysql_mutex_unlock(&rli->info_thd_lock);
   set_thd_in_use_temporary_tables(rli);  // (re)set info_thd in use for saved temp tables

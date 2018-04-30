@@ -267,7 +267,7 @@ public:
 
   MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
-  Relay_log_info *rli;
+  Relay_log_info *rli= nullptr;
   uint port;
   uint connect_retry;
   /*

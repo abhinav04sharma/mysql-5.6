@@ -4462,11 +4462,11 @@ static bool rocksdb_explicit_snapshot(
 {
   switch (ss_info->op) {
     case snapshot_operation::SNAPSHOT_CREATE: {
-      if (mysql_bin_log_is_open()) {
+      if (ss_info->lock_commits && mysql_bin_log_is_open()) {
         mysql_bin_log_lock_commits(ss_info);
       }
       auto s = Rdb_explicit_snapshot::create(ss_info, rdb, rdb->GetSnapshot());
-      if (mysql_bin_log_is_open()) {
+      if (ss_info->lock_commits && mysql_bin_log_is_open()) {
         mysql_bin_log_unlock_commits(ss_info);
       }
 

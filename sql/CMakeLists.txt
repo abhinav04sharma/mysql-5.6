@@ -289,6 +289,7 @@ SET (SLAVE_SOURCE rpl_slave.cc rpl_reporting.cc rpl_mi.cc rpl_rli.cc
 		  rpl_info_values.cc rpl_info.cc rpl_info_factory.cc
 		  rpl_info_table_access.cc dynamic_ids.cc rpl_rli_pdb.cc
 		  rpl_slave_commit_order_manager.cc
+		  rpl_slave_snapshot_manager.cc
 		  rpl_gtid_info.cc rpl_info_dummy.cc dependency_slave_worker.cc)
 ADD_LIBRARY(slave ${SLAVE_SOURCE})
 ADD_DEPENDENCIES(slave GenError)

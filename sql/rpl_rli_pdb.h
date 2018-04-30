@@ -501,6 +501,14 @@ public:
   {
     return c_rli->skip_unique_check;
   }
+  inline void set_group_seqno(const ulonglong seq_num)
+  {
+    group_seq_num= seq_num;
+  }
+  inline ulonglong get_group_seqno() const
+  {
+    return group_seq_num;
+  }
   bool is_table_idempotent(const std::string &table) const override
   {
     return c_rli ? c_rli->is_table_idempotent(table) : false;
@@ -522,6 +530,7 @@ protected:
 private:
   ulong gaq_index;          // GAQ index of the current assignment 
   ulonglong master_log_pos; // event's cached log_pos for possibile error report
+  ulonglong group_seq_num= 0;
   void end_info();
   bool read_info(Rpl_info_handler *from) override;
   bool write_info(Rpl_info_handler *to) override;

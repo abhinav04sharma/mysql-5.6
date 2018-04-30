@@ -21,6 +21,7 @@
 #include "rpl_filter.h"
 #include "rpl_rli.h"
 #include "rpl_slave_commit_order_manager.h" // Commit_order_manager
+#include "rpl_slave_snapshot_manager.h" // Snapshot_manager
 #include "sql_plugin.h"
 #include "rpl_handler.h"
 #include "rpl_info_factory.h"
@@ -107,6 +108,11 @@ static inline bool has_commit_order_manager(THD *thd)
 {
   return is_mts_worker(thd) &&
     thd->rli_slave->get_commit_order_manager() != NULL;
+}
+static inline bool has_snapshot_manager(THD *thd)
+{
+  return is_mts_worker(thd) &&
+    thd->rli_slave->get_snapshot_manager() != NULL;
 }
 #endif
 
@@ -7675,6 +7681,16 @@ MYSQL_BIN_LOG::sync_binlog_file(bool force, bool async)
 int
 MYSQL_BIN_LOG::finish_commit(THD *thd, bool async)
 {
+
+#ifdef HAVE_REPLICATION
+  if (has_snapshot_manager(thd))
+  {
+    Slave_worker *worker= dynamic_cast<Slave_worker *>(thd->rli_slave);
+    Snapshot_manager *mngr= worker->get_snapshot_manager();
+    mngr->wait_for_snapshot(worker->info_thd, worker->get_group_seqno());
+  }
+#endif
+
   /*
     In some unlikely situations, it can happen that binary
     log is closed before the thread flushes it's cache.
@@ -8051,6 +8067,9 @@ commit_stage:
     commit stage if binlog_error_action is ABORT_SERVER.
   */
   if (opt_binlog_order_commits &&
+#ifdef HAVE_REPLICATION
+      !has_snapshot_manager(thd) &&
+#endif
       (sync_error == 0 || binlog_error_action != ABORT_SERVER))
   {
     if (change_stage(thd, Stage_manager::COMMIT_STAGE,

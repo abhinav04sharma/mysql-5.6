@@ -1,0 +1,55 @@
+source include/have_rocksdb.inc;
+source include/master-slave.inc;
+
+connection master;
+CREATE TABLE t1(a INT PRIMARY KEY AUTO_INCREMENT) ENGINE = RocksDB;
+INSERT INTO t1 VALUES();
+sync_slave_with_master;
+
+connection slave;
+source include/stop_slave.inc;
+set @save.slave_parallel_workers= @@global.slave_parallel_workers;
+set @@global.slave_parallel_workers= 8;
+set @@global.slave_use_idempotent_for_recovery= YES;
+set @@global.mts_dependency_replication= STMT;
+set @@global.mts_dependency_order_commits= SNAPSHOT;
+
+connection master;
+let $itr= 0;
+disable_query_log;
+while ($itr < 9999)
+{
+  INSERT INTO t1 VALUES();
+  inc $itr;
+}
+enable_query_log;
+
+connection slave;
+source include/start_slave.inc;
+
+let $count= `SELECT COUNT(*) FROM t1`;
+while ($count < 10000)
+{
+  let $all_good= `SELECT COUNT(*) = MAX(a) FROM t1`;
+  if ($all_good == 0)
+  {
+    echo "RO transaction is not consistent!";
+  }
+  let $count= `SELECT COUNT(*) FROM t1`;
+}
+
+# cleanup
+connection master;
+drop table t1;
+sync_slave_with_master;
+
+connection slave;
+stop slave;
+set @@global.slave_parallel_workers= @save.slave_parallel_workers;
+set @@global.mts_dependency_replication= default;
+set @@global.slave_use_idempotent_for_recovery= default;
+set @@global.mts_dependency_order_commits= default;
+set @@global.slave_checkpoint_period= default;
+start slave;
+
+source include/rpl_end.inc;

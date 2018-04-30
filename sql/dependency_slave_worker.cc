@@ -3,6 +3,7 @@
 #include "dependency_slave_worker.h"
 #include "log_event_wrapper.h"
 #include "rpl_slave_commit_order_manager.h"
+#include "rpl_slave_snapshot_manager.h"
 
 
 bool append_item_to_jobs(slave_job_item *job_item,
@@ -39,7 +40,7 @@ Dependency_slave_worker::get_begin_event(Commit_order_manager *co_mngr)
   // case: place ourselves in the commit order queue
   if (ret && co_mngr != NULL)
   {
-    DBUG_ASSERT(opt_mts_dependency_order_commits);
+    DBUG_ASSERT(opt_mts_dependency_order_commits == DEP_ORDER_COMMITS_STRICT);
     set_current_db(ret->get_db());
     co_mngr->register_trx(this);
   }

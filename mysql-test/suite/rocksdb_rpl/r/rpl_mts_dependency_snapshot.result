@@ -1,0 +1,40 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+create table t1(a int primary key auto_increment) engine = rocksdb;
+insert into t1 values();
+stop slave;
+set @save.slave_parallel_workers= @@global.slave_parallel_workers;
+set @@global.slave_parallel_workers= 4;
+set @@global.slave_use_idempotent_for_recovery= YES;
+set @@global.mts_dependency_replication= STMT;
+set @@global.mts_dependency_order_commits= SNAPSHOT;
+set @@global.slave_checkpoint_period=3000;
+set @@global.debug= '+d,wait_for_repl_update_snapshot';
+start slave;
+SET DEBUG_SYNC='now WAIT_FOR reached';
+insert into t1 values();
+insert into t1 values();
+"Table after 1st snapshot"
+select count(*) from t1;
+count(*)
+1
+SET DEBUG_SYNC='now SIGNAL continue';
+SET DEBUG_SYNC='now WAIT_FOR reached';
+"Table after 2nd snapshot"
+select count(*) from t1;
+count(*)
+2
+SET DEBUG_SYNC='now SIGNAL continue';
+set @@global.debug= '-d,wait_for_repl_update_snapshot';
+drop table t1;
+stop slave;
+set @@global.slave_parallel_workers= @save.slave_parallel_workers;
+set @@global.mts_dependency_replication= default;
+set @@global.slave_use_idempotent_for_recovery= default;
+set @@global.mts_dependency_order_commits= default;
+set @@global.slave_checkpoint_period= default;
+start slave;
+include/rpl_end.inc

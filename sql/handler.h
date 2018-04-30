@@ -842,6 +842,7 @@ struct snapshot_info_st
   std::string gtid_executed;
   ulonglong snapshot_id= 0;
   enum snapshot_operation op= snapshot_operation::SNAPSHOT_NONE;
+  bool lock_commits= true;
 };
 
 class explicit_snapshot
@@ -1156,7 +1157,7 @@ struct st_ha_create_information_base
   uint stats_sample_pages;		/* number of pages to sample during
 					stats estimation, if used, otherwise 0. */
   enum_stats_auto_recalc stats_auto_recalc;
-  handlerton *db_type;
+  handlerton *db_type= nullptr;
   /**
     Row type of the table definition.
 

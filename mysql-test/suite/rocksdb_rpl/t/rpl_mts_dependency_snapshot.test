@@ -1,0 +1,56 @@
+# Tests if mts_dependency_order_commits= SNAPSHOT the slave RO trx always see a
+# prefix of the master's log
+
+source include/have_debug_sync.inc;
+source include/have_rocksdb.inc;
+source include/master-slave.inc;
+
+connection master;
+create table t1(a int primary key auto_increment) engine = rocksdb;
+insert into t1 values();
+sync_slave_with_master;
+
+connection slave;
+stop slave;
+set @save.slave_parallel_workers= @@global.slave_parallel_workers;
+set @@global.slave_parallel_workers= 4;
+set @@global.slave_use_idempotent_for_recovery= YES;
+set @@global.mts_dependency_replication= STMT;
+set @@global.mts_dependency_order_commits= SNAPSHOT;
+# Snapshots will be taken every 3 sec
+set @@global.slave_checkpoint_period=3000;
+set @@global.debug= '+d,wait_for_repl_update_snapshot';
+start slave;
+SET DEBUG_SYNC='now WAIT_FOR reached';
+
+# Test if the snapshot remains active for 5 secs
+connection master;
+# These inserts will not show up until the next snapshot
+insert into t1 values();
+insert into t1 values();
+
+connection slave;
+echo "Table after 1st snapshot";
+select count(*) from t1;
+SET DEBUG_SYNC='now SIGNAL continue';
+SET DEBUG_SYNC='now WAIT_FOR reached';
+echo "Table after 2nd snapshot";
+select count(*) from t1;
+SET DEBUG_SYNC='now SIGNAL continue';
+set @@global.debug= '-d,wait_for_repl_update_snapshot';
+
+# cleanup
+connection master;
+drop table t1;
+sync_slave_with_master;
+
+connection slave;
+stop slave;
+set @@global.slave_parallel_workers= @save.slave_parallel_workers;
+set @@global.mts_dependency_replication= default;
+set @@global.slave_use_idempotent_for_recovery= default;
+set @@global.mts_dependency_order_commits= default;
+set @@global.slave_checkpoint_period= default;
+start slave;
+
+source include/rpl_end.inc;

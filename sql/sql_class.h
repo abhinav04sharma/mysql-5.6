@@ -136,6 +136,12 @@ enum enum_mts_dependency_replication {
   DEP_RPL_STATEMENT,
 };
 
+enum enum_mts_dependency_order_commits {
+  DEP_ORDER_COMMITS_OFF,
+  DEP_ORDER_COMMITS_STRICT,
+  DEP_ORDER_COMMITS_SNAPSHOT,
+};
+
 enum enum_slave_use_idempotent_for_recovery {
   SLAVE_USE_IDEMPOTENT_FOR_RECOVERY_NO,
   SLAVE_USE_IDEMPOTENT_FOR_RECOVERY_YES};
@@ -3249,38 +3255,25 @@ private:
   std::shared_ptr<explicit_snapshot> m_explicit_snapshot;
 
 public:
-  /**
-   * Creates an explicit snapshot and associates it with the current conn
-   * return true if error, false otherwise
-   */
-  inline bool create_explicit_snapshot()
-  {
-    auto hton= lex->create_info.db_type;
-    snapshot_info_st ss_info;
-    ss_info.op= snapshot_operation::SNAPSHOT_CREATE;
-    bool error= ha_explicit_snapshot(this, hton, &ss_info);
-#ifdef HAVE_REPLICATION
-    bool need_ok = true;
-    error= error || show_master_offset(this, ss_info, &need_ok);
-#endif
-    return error;
-  }
-
-  inline std::shared_ptr<explicit_snapshot> get_explicit_snapshot()
-  {
-    return m_explicit_snapshot;
-  }
-
-  inline void set_explicit_snapshot(std::shared_ptr<explicit_snapshot> s)
+  std::shared_ptr<explicit_snapshot> get_explicit_snapshot();
+  void set_explicit_snapshot(std::shared_ptr<explicit_snapshot> s)
   {
     m_explicit_snapshot= s;
   }
 
   /**
+   * Creates an explicit snapshot and associates it with the current conn
+   * return true if error, false otherwise
+   */
+  bool create_explicit_snapshot(const bool show_offset= true,
+                                const bool lock_commits= true);
+
+  /**
    * Attaches an existing explicit snapshot to the current conn
    * return true if error, false otherwise
    */
-  inline bool attach_explicit_snapshot(const ulonglong snapshot_id)
+  inline bool attach_explicit_snapshot(const ulonglong snapshot_id,
+                                       const bool show_offset= true)
   {
     auto hton= lex->create_info.db_type;
     snapshot_info_st ss_info;
@@ -3288,8 +3281,11 @@ public:
     ss_info.op= snapshot_operation::SNAPSHOT_ATTACH;
     bool error= ha_explicit_snapshot(this, hton, &ss_info);
 #ifdef HAVE_REPLICATION
-    bool need_ok = true;
-    error= error || show_master_offset(this, ss_info, &need_ok);
+    if (show_offset)
+    {
+      bool need_ok = true;
+      error= error || show_master_offset(this, ss_info, &need_ok);
+    }
 #endif
     return error;
   }
@@ -3298,15 +3294,18 @@ public:
    * Releases the explicit snapshot associated with the current conn
    * return true if error, false otherwise
    */
-  inline bool release_explicit_snapshot()
+  inline bool release_explicit_snapshot(const bool show_offset= true)
   {
     auto hton= lex->create_info.db_type;
     snapshot_info_st ss_info;
     ss_info.op= snapshot_operation::SNAPSHOT_RELEASE;
     bool error= ha_explicit_snapshot(this, hton, &ss_info);
 #ifdef HAVE_REPLICATION
-    bool need_ok = true;
-    error= error || show_master_offset(this, ss_info, &need_ok);
+    if (show_offset)
+    {
+      bool need_ok = true;
+      error= error || show_master_offset(this, ss_info, &need_ok);
+    }
 #endif
     return error;
   }

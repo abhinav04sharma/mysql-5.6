@@ -39,6 +39,8 @@
 #include "rpl_filter.h"
 #include "rpl_record.h"
 #include "rpl_slave.h"
+#include "rpl_mi.h"
+#include "rpl_slave_snapshot_manager.h"
 #include <my_bitmap.h>
 #include "log_event.h"
 #include "sql_audit.h"
@@ -5589,6 +5591,57 @@ void THD::clear_next_event_pos()
   binlog_next_event_pos.file_name= NULL;
   binlog_next_event_pos.pos= 0;
 };
+
+std::shared_ptr<explicit_snapshot> THD::get_explicit_snapshot()
+{
+#ifdef HAVE_REPLICATION
+  if (!rli_slave &&
+      active_mi &&
+      active_mi->rli &&
+      active_mi->rli->get_snapshot_manager())
+  {
+    m_explicit_snapshot=
+      active_mi->rli->get_snapshot_manager()->get_snapshot();
+  }
+#endif
+  return m_explicit_snapshot;
+}
+
+bool THD::create_explicit_snapshot(const bool show_offset,
+                                   const bool lock_commits)
+{
+  snapshot_info_st ss_info;
+  bool error= false;
+#ifdef HAVE_REPLICATION
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!rli_slave &&
+      active_mi &&
+      active_mi->rli &&
+      active_mi->rli->get_snapshot_manager())
+  {
+    m_explicit_snapshot=
+      active_mi->rli->get_snapshot_manager()->get_snapshot();
+    ss_info= m_explicit_snapshot->ss_info;
+  }
+  else
+  {
+#endif
+  auto hton= lex->create_info.db_type;
+  ss_info.op= snapshot_operation::SNAPSHOT_CREATE;
+  ss_info.lock_commits= lock_commits;
+  error= ha_explicit_snapshot(this, hton, &ss_info);
+#ifdef HAVE_REPLICATION
+  }
+  if (show_offset)
+  {
+    bool need_ok = true;
+    error= error || show_master_offset(this, ss_info, &need_ok);
+  }
+  mysql_mutex_unlock(&LOCK_active_mi);
+#endif
+  DBUG_ASSERT(error || m_explicit_snapshot);
+  return error;
+}
 
 void THD::set_user_connect(USER_CONN *uc)
 {
