@@ -1,9 +1,7 @@
 set(TBB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tbb)
 
-
 include(${TBB_DIR}/cmake/TBBBuild.cmake)
 
-set(tbb_build_MAKE_ARGS extra_inc=big_iron.inc)
 tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS extra_inc=big_iron.inc)
 
 include(ExternalProject)
