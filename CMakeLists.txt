@@ -170,18 +170,10 @@ IF(WITH_DEFAULT_FEATURE_SET)
   INCLUDE(${CMAKE_SOURCE_DIR}/cmake/build_configurations/feature_set.cmake)
 ENDIF()
 
-SET(TBB_DIR ${CMAKE_SOURCE_DIR}/tbb)
-INCLUDE(${TBB_DIR}/cmake/TBBBuild.cmake)
-tbb_build(TBB_ROOT ${TBB_DIR} CONFIG_DIR TBB_DIR MAKE_ARGS tbb_cpf=1)
-FIND_PACKAGE(TBB REQUIRED tbb_preview)
-
-
-
 # Add macros
 INCLUDE(character_sets)
 INCLUDE(cpu_info)
 INCLUDE(zlib)
-# INCLUDE(cityhash)
 INCLUDE(zstd)
 INCLUDE(libevent)
 INCLUDE(ssl)
@@ -570,6 +562,7 @@ ELSE()
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/plugin/semisync/)
 ENDIF()
 
+add_subdirectory(third_party)
 ADD_SUBDIRECTORY(include)
 ADD_SUBDIRECTORY(dbug)
 ADD_SUBDIRECTORY(strings)
@@ -579,6 +572,7 @@ ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(utils)
 ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(libmysql)
+
 
 IF(WITH_UNIT_TESTS)
   # Visual Studio 11 needs this extra flag in order to compile gmock.

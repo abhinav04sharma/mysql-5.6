@@ -5,8 +5,8 @@
 	path = rqg
 	url = https://github.com/yoshinorim/rqg.git
 [submodule "tbb"]
-	path = tbb
+	path = third_party/tbb
 	url = https://github.com/01org/tbb.git
 [submodule "cityhash"]
-	path = cityhash
+	path = third_party/cityhash
 	url = https://github.com/google/cityhash.git

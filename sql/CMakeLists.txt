@@ -21,13 +21,9 @@ INCLUDE_DIRECTORIES(
   ${ZLIB_INCLUDE_DIR}
   ${SSL_INCLUDE_DIRS}
   ${CMAKE_BINARY_DIR}/sql
-  ${CMAKE_HOME_DIRECTORY}/tbb/include
-  ${CMAKE_HOME_DIRECTORY}/cityhash/src
+  ${CMAKE_SOURCE_DIR}/third_party/tbb/include
+  ${CMAKE_BINARY_DIR}/third_party/cityhash/include
 )
-
-FIND_LIBRARY(CITYHASH_LIB cityhash PATHS ${CMAKE_HOME_DIRECTORY}/cityhash/src/.libs)
-ADD_LIBRARY(cityhash SHARED IMPORTED)
-FIND_LIBRARY(TBB_LIB tbb_preview PATHS ${CMAKE_BINARY_DIR}/tbb_cmake_build/tbb_cmake_build_subdir_release)
 
 IF(WITH_JUNCTION)
   SET(JUNCTION_LIBRARIES ${JUNCTION_LIBRARIES}
@@ -284,8 +280,11 @@ SET (BINLOG_SOURCE uuid.cc rpl_gtid_misc.cc
 ADD_LIBRARY(binlog ${BINLOG_SOURCE})
 SET (RPL_SOURCE rpl_handler.cc rpl_tblmap.cc)
 ADD_DEPENDENCIES(binlog GenError)
-TARGET_LINK_LIBRARIES(binlog ${CITYHASH_LIB})
-TARGET_LINK_LIBRARIES(binlog ${TBB_LIB})
+
+add_dependencies(binlog libcityhash)
+target_link_libraries(binlog ${CMAKE_BINARY_DIR}/third_party/cityhash/lib/libcityhash.a)
+target_link_libraries(binlog ${CMAKE_BINARY_DIR}/third_party/tbb_cmake_build/tbb_cmake_build_subdir_release/libtbb.a)
+
 ADD_LIBRARY(rpl ${RPL_SOURCE})
 SET (MASTER_SOURCE rpl_master.cc)
 ADD_DEPENDENCIES(rpl GenError)
