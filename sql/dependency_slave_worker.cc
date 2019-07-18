@@ -20,7 +20,7 @@ Dependency_slave_worker::get_begin_event(Commit_order_manager *co_mngr)
   Log_event_wrapper* ret= NULL;
   while (!info_thd->killed &&
          running_status == RUNNING &&
-         (ret= c_rli->dequeue_dep()) == NULL) 
+         !((ret= c_rli->dequeue_dep()) != NULL && ret->begin_event()->whole_group_scheduled)) 
   {
     my_sleep(1);
   }
