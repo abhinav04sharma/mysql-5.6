@@ -12185,7 +12185,7 @@ void Rows_log_event::prepare_dep(Relay_log_info *rli,
     if (rli->dep_key_lookup.find(ac, k))
     {
       auto last_key_event= ac->second;
-      last_key_event->add_dependent(ev);
+      last_key_event->add_dependent(ev->begin_event());
     }
   }
 
